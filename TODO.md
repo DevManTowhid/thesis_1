@@ -1,0 +1,5 @@
+- [x] Create conda environment from environment.yml
+- [x] Install PyTorch with CUDA support for GTX 1650
+- [ ] Train language model (lm)
+- [ ] Train summarizer
+- [ ] Run model to generate summaries
