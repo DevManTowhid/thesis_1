@@ -167,7 +167,7 @@ def run(args):
         procedure.train_lm(model_name=args.model_name,check_every=args.check_every)
     elif args.mode == "summ":
         # Train summarizer
-        procedure.train_summarizer(model_name=args.model_name, lm_path=args.lm_path, tolerance=args.tolerance, check_every=args.check_every)
+        procedure.train_summarizer(model_name=args.model_name, lm_path=args.lm_path, tolerance=args.tolerance)
     elif args.mode == "eval":
         # Evaluation mode, generate summaries
         if args.test_path is not None:
