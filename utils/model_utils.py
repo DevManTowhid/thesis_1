@@ -68,7 +68,7 @@ def normal_weights_init(m):
 #####################################
 
 
-def load_gloveembeddings(vocab, Glove_name='6B', Glove_dim=100, glove_dir='D:/Desktop/neutral_summary_copy_by_towhid_002/neutral_summary_copy_by_towhid/glove.6B'):
+def load_gloveembeddings(vocab, Glove_name='6B', Glove_dim=100, glove_dir='glove.6B'):
     glove_file_path = os.path.join(glove_dir, f'glove.{Glove_name}.{Glove_dim}d.txt')
 
     # Define unk_init to initialize unknown embeddings

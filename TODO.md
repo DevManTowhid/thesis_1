@@ -1,5 +1,5 @@
-- [x] Create conda environment from environment.yml
-- [x] Install PyTorch with CUDA support for GTX 1650
-- [ ] Train language model (lm)
-- [ ] Train summarizer
-- [ ] Run model to generate summaries
+# TODO: Remove Early Stopping Functionality
+
+- [x] Remove early stopping logic from `train_lm` method in Procedures.py
+- [x] Remove early stopping logic from `train_summarizer` method in Procedures.py
+- [x] Ensure full epoch training and best model saving is retained
