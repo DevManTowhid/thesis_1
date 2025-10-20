@@ -164,7 +164,7 @@ def run(args):
     # Training modes
     if args.mode == "lm":
         # Train language model
-        procedure.train_lm(model_name=args.model_name,check_every=args.check_every)
+        procedure.train_lm(model_name=args.model_name)
     elif args.mode == "summ":
         # Train summarizer
         procedure.train_summarizer(model_name=args.model_name, lm_path=args.lm_path, tolerance=args.tolerance)
