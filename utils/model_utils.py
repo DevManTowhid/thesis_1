@@ -70,7 +70,7 @@ def normal_weights_init(m):
 
 def load_gloveembeddings(vocab, Glove_name='6B', Glove_dim=100, glove_dir='glove.6B'):
     glove_file_path = os.path.join(glove_dir, f'glove.{Glove_name}.{Glove_dim}d.txt')
-
+    print("Glove file path:", glove_file_path) 
     # Define unk_init to initialize unknown embeddings
     unk_init = lambda: torch.randn(Glove_dim)
 
