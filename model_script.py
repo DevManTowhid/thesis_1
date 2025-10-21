@@ -167,7 +167,7 @@ def run(args):
         procedure.train_lm(model_name=args.model_name)
     elif args.mode == "summ":
         # Train summarizer
-        procedure.train_summarizer(model_name=args.model_name, lm_path=args.lm_path, tolerance=args.tolerance)
+        procedure.train_summarizer(model_name=args.model_name, lm_path=args.lm_path)
     elif args.mode == "eval":
         # Evaluation mode, generate summaries
         if args.test_path is not None:
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     parser.add_argument("--ref-hidden", type=int, dest="ref_hidden_type", default=None, help="Hidden representations used to compute the cosine similarity.")
     parser.add_argument("--gen-hidden", type=int, dest="gen_hidden_type", default=None, help="Hidden representations used to generate summaries at test time.")
     parser.add_argument("--beam-decode", type=bool, dest="beam_decode", default=None, help="Enable or disable beam decoding.")
-    parser.add_argument("--tolerance", type=int, default=3, help="Defines how many times to check the loss value before stopping the training early if the loss doesn't improve.")
+    
     parser.add_argument("--check-every", dest="check_every", type=int, default=5, help="Number of epochs after which check the loss value in order to stop early.")
     parser.add_argument("--lm-path", type=str, dest="lm_path", default=None, help="Path where to save the trained language model or path to a pretrained language model to load.")
     parser.add_argument("--model-name", type=str, dest="model_name", default=None, help="Name of the model. If None, a name will be automatically generated.")
