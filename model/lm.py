@@ -26,7 +26,7 @@ class LanguageModel(nn.Module):
         ######### Embeddings
         self.embedding_rec, self.embedding_cls = None, None
         if self.hp.use_pretrained_embs:
-            emb_vecs = load_gloveembeddings(vocab, Glove_name=self.hp.glove_name, Glove_dim=self.hp.emb_dim)
+            emb_vecs = load_gloveembeddings(vocab, Glove_name=self.hp.glove_name, Glove_dim=100)
             if self.hp.use_rec:
                 self.embedding_rec = nn.Embedding.from_pretrained(emb_vecs, freeze=False, padding_idx=self.vocab.pad())
             if self.hp.use_cls:
