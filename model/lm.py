@@ -66,8 +66,7 @@ class LanguageModel(nn.Module):
                                        emb_dim=100,  # GloVe 100d embeddings
                                        gat_attn=self.gat_rec,
                                        num_layers=self.hp.enc_layers,
-                                       dropout=self.hp.enc_drop,
-                                       bidirectional=True)  # Bidirectional Encoder
+                                       dropout=self.hp.enc_drop) 
 
         if self.hp.use_cls:
             self.encoder_cls = Encoder(input_dim=self.input_dim,
@@ -75,17 +74,14 @@ class LanguageModel(nn.Module):
                                        emb_dim=100,  # GloVe 100d embeddings
                                        gat_attn=self.gat_cls,
                                        num_layers=self.hp.enc_layers,
-                                       dropout=self.hp.enc_drop,
-                                       bidirectional=True)  # Bidirectional Encoder
+                                       dropout=self.hp.enc_drop)  
 
         ######### Decoder (Bidirectional)
         if self.hp.use_rec:
             self.decoder = Decoder(output_dim=self.output_dim,
                                    hid_dim=self.hp.hid_dim,
                                    emb_dim=100,  # GloVe 100d embeddings
-                                   dropout=self.hp.dec_drop,
-                                   bidirectional=True)  # Bidirectional Decoder
-        
+                                   dropout=self.hp.dec_drop) 
         ######### Classifier
         self.classifier = None
         self.grl = None
