@@ -219,7 +219,7 @@ class Procedure():
         
         # for i in tqdm(range(iter_size), unit="batch"):
         for i in range(iter_size):
-            batch = iterator_.next()
+            batch = next(iterator_)
             
             src_input = batch.enc_input.permute(1, 0).contiguous().to(self.device) # [seq_len, batch_size]
             trg_input = batch.enc_input.permute(1, 0).contiguous().to(self.device) # [seq_len, batch_size]
