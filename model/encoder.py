@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class Encoder(nn.Module):
-    def __init__(self, input_dim, hid_dim, emb_dim, gat_attn=None, num_layers=1, dropout=0.5, bidirectional=True):
+    def __init__(self, input_dim, hid_dim, emb_dim, gat_attn=None, num_layers=1, dropout=0.5):
         super().__init__()
         self.hid_dim = hid_dim
         self.rnn = nn.GRU(emb_dim, hid_dim, num_layers=num_layers, bidirectional=True)
