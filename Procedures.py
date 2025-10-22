@@ -1,6 +1,6 @@
 import math
-from tqdm import tqdm
-# torch libraries
+
+#torch libraries
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,24 +9,23 @@ import torch.optim as optim
 from model.lm import LanguageModel
 from model.summarizer import Summarizer
 
-# Getting metrics on tensorBoard
+#Getting metrics on tensorBoard
 from torch.utils.tensorboard import SummaryWriter
 
-# Personalized libraries
+#Personalized libraries
 from utils.model_utils import freeze
 from utils.Errors import loss_estimation
+#from utils.ROUGE_eval import Rouge_eval
 
 import time
 import copy
+from tqdm import tqdm
 import re
-import torch.serialization
 
-# Add the Summarizer class to the safe global list for loading models
-torch.serialization.add_safe_globals([Summarizer])
 
 class Procedure():
-    def __init__(self, hp, ds_config, vocab, writer=None, train_iter=None, valid_iter=None):
-        self.train_iter = train_iter
+    def __init__(self, hp, ds_config, vocab, writer=None, train_ter=None, valid_iter=None):
+        self.train_iter = train_ter
         self.valid_iter = valid_iter
         
         self.hp = hp
@@ -42,15 +41,17 @@ class Procedure():
         # Learning parameters
         self.clip = self.hp.clip
         
-        # Tracking results through tensorboard
+        # Folowing results through tensorboard
         self.writer = writer
 
-    def train_lm(self, model_name=None):
+    def train_lm(self, model_name=None, tolerance=3, check_every=5):
         """
         Train the language model module
-
+        
         Input:
-            model_name (str): Path where to save the trained language model. If None, save to a default directory
+            path (str): Path where to save the trained language model. If None, save to a default directory
+            tolerance (int): Defines when to stop training if there is no improvement with the loss
+            check_every (int): Check loss value every certain number of epochs
         """
         self.lm = LanguageModel(self.vocab, hp=self.hp).to(self.device)
         self.lm.apply(self.hp.weights_init)
@@ -69,49 +70,62 @@ class Procedure():
         n_epochs = self.hp.lm_epochs
         best_epoch = 0
         best_loss = float("inf")
-
+        counter = tolerance
+        
         cls_weight = self.hp.cls_weight
         rec_weight = 0.0  # For a certain number of epochs, ignore the reconstruction loss
-
+        
         self.acc_size = self.hp.acc_size
-
+        
         for epoch in range(n_epochs):
+            # After a certain number of epochs, consider both the classifier and reconstruction losses
             if epoch == self.hp.cls_num_epochs:
                 self.acc_size = 0
                 rec_weight = self.hp.rec_weight
-
+            
             epoch_st = time.perf_counter()
             self.lm.train()
             train_iterator_ = iter(self.train_iter)
-            alpha = 2.0 / (1.0 + math.exp(-self.hp.grl_gamma * (epoch / n_epochs))) - 1.0
+            # Update gamma for GRL
+            alpha = 2.0 / (1.0 + math.exp(-self.hp.grl_gamma * (epoch/n_epochs))) - 1.0
             train_loss = self.run_epochs(epoch, train_iterator_, cls_weight, rec_weight, alpha, model="lm", mode="Train")
-
+            
             # Validation
             self.lm.eval()
             with torch.no_grad():
                 valid_iterator_ = iter(self.valid_iter)
                 valid_loss = self.run_epochs(epoch, valid_iterator_, cls_weight, rec_weight, alpha, model="lm", mode="Eval")
                 print(f"| Epoch: {epoch+1:03} | Train loss: {train_loss:.3f} | Valid loss: {valid_loss:.3f} | time: {(time.perf_counter() - epoch_st):.2f}s'")
-
+                
                 if epoch >= self.hp.save_epoch:
                     # Save best model
                     if valid_loss <= best_loss:
                         best_loss = valid_loss
                         best_epoch = epoch
-
+                        counter = tolerance
+                        
                         # Save best model
+                        #save_path = re.sub("\.pt$", f".{epoch}_epochs.pt", path)
                         save_path = path
                         torch.save(self.lm.state_dict(), save_path)
-
+                    
+                    elif epoch%check_every == 0:
+                        counter -= 1
+            
+            if counter == 0:
+                print(f"Ending training early after {epoch+1} epochs. best epoch: {best_epoch+1}")
+                break
+                
         print(f"Saved model in {path}.")
-
-    def train_summarizer(self, model_name, lm_path):
+                    
+    def train_summarizer(self, model_name, lm_path, tolerance=3, check_every=5):
         """
         Train the summarizer module
-
+        
         Input:
-            model_name (str): Path where to save the trained summarizer model. If None, save to a default directory
-            lm_path (str): Path to the pretrained language model
+            path (str): Path where to save the trained language model. If None, save to a default directory
+            tolerance (int): Defines when to stop training if there is no improvement with the loss
+            check_every (int): Check loss value every certain number of epochs
         """
         if not model_name:
             model_name = self.gen_model_name(model="summarizer")
@@ -133,6 +147,7 @@ class Procedure():
         # Freeze the weights of certain modules
         freeze(enc_rec)
         freeze(enc_cls)
+        #freeze(dec)
         freeze(emb_rec)
         freeze(emb_cls)
         
@@ -149,35 +164,46 @@ class Procedure():
         print(f"Training Summarizer for {n_epochs} epochs...")
         best_loss = float("inf")
         best_epoch = 0
+        counter = tolerance
         cls_weight = self.hp.cls_weight
         rec_weight = 1.0
-
+        
         for epoch in range(n_epochs):
             epoch_st = time.perf_counter()
             self.summarizer.train()
             train_iterator_ = iter(self.train_iter)
-            alpha = 2.0 / (1.0 + math.exp(-self.hp.grl_gamma * (epoch / n_epochs))) - 1.0
+            # Update gamma for GRL
+            alpha = 2.0 / (1.0 + math.exp(-self.hp.grl_gamma * (epoch/n_epochs))) - 1.0
             train_loss = self.run_epochs(epoch, train_iterator_, cls_weight, rec_weight, alpha, model="summarizer", mode="Train")
-
+            
             # Validation
-            self.summarizer.eval()
+            self.lm.eval()
             with torch.no_grad():
                 valid_iterator_ = iter(self.valid_iter)
                 valid_loss = self.run_epochs(epoch, valid_iterator_, cls_weight, rec_weight, alpha, model="summarizer", mode="Eval")
                 print(f"| Epoch: {epoch+1:03} | Train loss: {train_loss:.3f} | Valid loss: {valid_loss:.3f} | time: {(time.perf_counter() - epoch_st):.2f}s'")
-
+            
                 if valid_loss <= best_loss:
                     best_loss = valid_loss
                     best_epoch = epoch
-
+                    counter = tolerance
+                    
                     # Save best model
+                    #save_path = re.sub("\.pt$", f".{epoch}_epochs.pt", path)
                     save_path = path
                     torch.save(self.summarizer, save_path)
-
+                    
+                elif epoch%check_every == 0:
+                    counter -= 1   
+            
             torch.cuda.empty_cache()
-
+                        
+            if counter == 0:
+                print(f"Ending training early after {epoch+1} epochs. best epoch: {best_epoch+1}")
+                break
+        
         print(f"Saved model in {path}.")
-
+    
     def run_epochs(self, epoch, iterator_, cls_weight=4.0, rec_weight=1.0, alpha=0.5, model="lm", mode="Train", debug=False):
         epoch_loss = 0.0
         epoch_rec = 0.0
@@ -191,13 +217,13 @@ class Procedure():
         ACC_SIZE = self.acc_size
         accumulation_steps = 0
         
-        # Use tqdm to wrap the iteration over batches and show a progress bar
-        for i, batch in tqdm(enumerate(iterator_), total=iter_size, desc=f"Epoch {epoch+1}/{self.hp.lm_epochs}", ncols=100):
-            # Batch processing code remains the same
-            src_input = batch.enc_input.permute(1, 0).contiguous().to(self.device)  # [seq_len, batch_size]
-            trg_input = batch.enc_input.permute(1, 0).contiguous().to(self.device)  # [seq_len, batch_size]
-            src_senti = batch.src_senti.to(self.device)  # [batch_size]
-            src_senti = torch.clamp(src_senti.float(), 0.0, 1.0)
+        # for i in tqdm(range(iter_size), unit="batch"):
+        for i in range(iter_size):
+            batch = iterator_.next()
+            
+            src_input = batch.enc_input.permute(1, 0).contiguous().to(self.device) # [seq_len, batch_size]
+            trg_input = batch.enc_input.permute(1, 0).contiguous().to(self.device) # [seq_len, batch_size]
+            src_senti = batch.src_senti.to(self.device) # [batch_size]
             src_len = batch.enc_len.to(self.device)
             
             batch_size = src_input.size(1)
@@ -212,11 +238,13 @@ class Procedure():
             
             if model == "lm":
                 outputs, cls_preds, cls_preds_tmp = self.lm(src_input, trg_input, src_senti, alpha, tf_ratio=self.hp.tf_ratio)
+                # output = [seq_len, batch_size, output_dim]
                 # Compute reconstruction loss
                 if outputs is not None:
                     output_dim = outputs.shape[-1]
                     outputs = outputs[1:].view(-1, output_dim)  # [(seq_len-1) * batch_size, output_dim]
                     trg_input = trg_input[1:].view(-1)  # [(seq_len-1) * batch_size]
+                    #rec_criterion = nn.CrossEntropyLoss(ignore_index=self.vocab.pad())
                     rec_criterion = nn.NLLLoss(ignore_index=self.vocab.pad())
                     rec_loss = rec_criterion(outputs, trg_input)
                 
@@ -224,33 +252,37 @@ class Procedure():
                 if cls_preds is not None:
                     cls_criterion = nn.BCELoss()
                     cls_loss = cls_criterion(cls_preds, src_senti.to(torch.float32))
+                    # Compute classification accuracy
                     acc = binary_accuracy(cls_preds, src_senti)
                     acc_no_grl = binary_accuracy(cls_preds_tmp, src_senti)
                 
-                loss = rec_weight * rec_loss + cls_weight * cls_loss
-                        
+                loss = rec_weight*rec_loss + cls_weight*cls_loss
+                    
             elif model == "summarizer":
                 outputs, cos_sim = self.summarizer(src_input, trg_input, src_len, tf_ratio=self.hp.tf_ratio, gumbel_hard=True)
                 # outputs: [seq_len, batch_size, output_dim]
                 output_dim = outputs.shape[-1]
                 outputs = outputs[1:].view(-1, output_dim)  # [(seq_len-1) * batch_size, output_dim]
                 trg_input = trg_input[1:].view(-1)  # [(seq_len-1) * batch_size]
+                #rec_criterion = nn.CrossEntropyLoss(ignore_index=self.vocab.pad())
                 rec_criterion = nn.NLLLoss(ignore_index=self.vocab.pad())
                 rec_loss = rec_criterion(outputs, trg_input)
-                        
+                    
+                # Compute cosine similarity
                 sim_loss = 1.0 - abs(cos_sim)
                 loss = sim_loss
             else:
-                raise ValueError(f"Model {model} was not found!")
+                raise Error(f"Model {model} was not found!")
             
             if mode == "Train":
-                loss.register_hook(lambda grad: grad / batch_size)
+                loss.register_hook(lambda grad: grad/batch_size)
                 loss.backward()
                 if accumulation_steps >= ACC_SIZE:
                     params = self.lm.parameters() if model == "lm" else self.summarizer.parameters()
                     torch.nn.utils.clip_grad_norm_(params, self.clip)
                     self.optimizer.step()
                     self.optimizer.zero_grad()
+                    # Reset accumulation
                     accumulation_steps = 0
             
             epoch_loss += loss.item()
@@ -270,7 +302,7 @@ class Procedure():
             else:
                 self.writer.add_scalar(f"{mode}/Sim Loss", epoch_sim / iter_size, global_step=epoch)
                 self.writer.add_scalar(f"{mode}/Rec Loss", epoch_rec / iter_size, global_step=epoch)
-        
+            
         return epoch_loss / iter_size
 
     def reconstruct_reviews(self, itr, lm_path, batch_idx=None):
@@ -287,17 +319,18 @@ class Procedure():
         all_reviews = []
         iterator_ = iter(itr)
         with torch.no_grad():
-            for i, batch in enumerate(iterator_):
+            for i in range(len(iterator_)):
+                batch = iterator_.next()
                 if batch_idx is not None and i not in batch_idx:
                     continue
                 batch.to(self.device)
                 # Unpack batch
-                src_input = batch.enc_input.permute(1, 0).contiguous() 
-                trg = batch.enc_input.permute(1, 0).contiguous()
+                src_input = batch.enc_input.permute(1,0).contiguous() 
+                trg = batch.enc_input.permute(1,0).contiguous()
                 reviews = lm.inference(src_input, trg)
                 prod_ids = batch.src_prod_id
-                for j, (ids, rev) in enumerate(zip(src_input.permute(1, 0), reviews)):
-                    pid = prod_ids[j]
+                for j, (ids, rev) in enumerate(zip(src_input.permute(1,0), reviews)):
+                    pid = prod_ids
                     og_rev = " ".join([self.vocab.id2word(t) for t in ids if t not in [0, 2, 3]])
                     all_reviews.append((pid, rev, og_rev))
         
@@ -323,18 +356,18 @@ class Procedure():
         tot_elements = len(batch_idx) if batch_idx else len(iterator_)
         
         with torch.no_grad():
-            for i, batch in enumerate(iterator_):
+            for i in tqdm(range(tot_elements)):
+                batch = iterator_.next()
                 if batch_idx is not None and i not in batch_idx:
                     continue
                 batch.to(self.device)
                 # Unpack batch
-                src_input = batch.enc_input.permute(1, 0).contiguous()
+                src_input = batch.enc_input.permute(1,0).contiguous()
                 revs = [self.vocab.outputids2words(ids) for ids in batch.enc_input]
                 src_len = batch.enc_len
                 prod_id = batch.src_prod_id
                 summaries, hiddens, mean_hiddens = summarizer.inference(src_input, src_len)
-                for j in range(len(prod_id)):
-                    all_summaries.append((prod_id[j], summaries[j]))
+                all_summaries.append((prod_id, summaries))
         
         return all_summaries
     
@@ -375,7 +408,7 @@ class Procedure():
             n_epochs = self.hp.summarizer_epochs
             name = f"summ.{lm_name}.batch_{batch_size}_docs.lm_lr{self.hp.lm_lr}.dec_{dec_hid}.sum_{sum_hid}.lr{self.hp.summ_lr}.{self.hp.summarizer_epochs}_epochs.pt"
         else:
-            raise ValueError(f"model {model} is not recognized")
+            raise Error(f"model {model} is not recognized")
             
         return name
 
