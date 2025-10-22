@@ -251,7 +251,10 @@ class Procedure():
                 # Compute classification loss
                 if cls_preds is not None:
                     cls_criterion = nn.BCELoss()
-                    cls_loss = cls_criterion(cls_preds, src_senti.to(torch.float32))
+                    # Ensure targets are within valid range
+                    src_senti = torch.clamp(src_senti.float(), min=0.0, max=1.0)
+                    cls_loss = cls_criterion(cls_preds, src_senti)
+
                     # Compute classification accuracy
                     acc = binary_accuracy(cls_preds, src_senti)
                     acc_no_grl = binary_accuracy(cls_preds_tmp, src_senti)
