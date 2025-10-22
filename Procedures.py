@@ -24,7 +24,7 @@ import re
 
 
 class Procedure():
-    def __init__(self, hp, ds_config, vocab, writer=None, train_ter=None, valid_iter=None):
+    def __init__(self, hp, ds_config, vocab, writer=None, train_iter=None, valid_iter=None):
         self.train_iter = train_ter
         self.valid_iter = valid_iter
         
