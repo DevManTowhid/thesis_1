@@ -216,9 +216,10 @@ class Procedure():
         
         ACC_SIZE = self.acc_size
         accumulation_steps = 0
-        
+        progress_bar = tqdm(range(iter_size), desc=f"{mode} Epoch {epoch+1}", unit="batch")
+
         # for i in tqdm(range(iter_size), unit="batch"):
-        for i in range(iter_size):
+        for i in progress_bar:
             batch = next(iterator_)
             
             src_input = batch.enc_input.permute(1, 0).contiguous().to(self.device) # [seq_len, batch_size]
@@ -305,6 +306,11 @@ class Procedure():
             else:
                 self.writer.add_scalar(f"{mode}/Sim Loss", epoch_sim / iter_size, global_step=epoch)
                 self.writer.add_scalar(f"{mode}/Rec Loss", epoch_rec / iter_size, global_step=epoch)
+        progress_bar.set_postfix({
+        "Loss": f"{loss.item():.3f}",
+        "Rec": f"{rec_loss.item():.3f}",
+        "Cls": f"{cls_loss.item():.3f}" if model == "lm" else "",
+        "Acc": f"{acc:.2f}" if model == "lm" else "",})
             
         return epoch_loss / iter_size
 
