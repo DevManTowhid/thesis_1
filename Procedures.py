@@ -44,14 +44,12 @@ class Procedure():
         # Folowing results through tensorboard
         self.writer = writer
 
-    def train_lm(self, model_name=None, tolerance=3, check_every=5):
+    def train_lm(self, model_name=None):
         """
         Train the language model module
-        
+
         Input:
             path (str): Path where to save the trained language model. If None, save to a default directory
-            tolerance (int): Defines when to stop training if there is no improvement with the loss
-            check_every (int): Check loss value every certain number of epochs
         """
         self.lm = LanguageModel(self.vocab, hp=self.hp).to(self.device)
         self.lm.apply(self.hp.weights_init)
@@ -70,62 +68,52 @@ class Procedure():
         n_epochs = self.hp.lm_epochs
         best_epoch = 0
         best_loss = float("inf")
-        counter = tolerance
-        
+
         cls_weight = self.hp.cls_weight
         rec_weight = 0.0  # For a certain number of epochs, ignore the reconstruction loss
-        
+
         self.acc_size = self.hp.acc_size
-        
+
         for epoch in range(n_epochs):
             # After a certain number of epochs, consider both the classifier and reconstruction losses
             if epoch == self.hp.cls_num_epochs:
                 self.acc_size = 0
                 rec_weight = self.hp.rec_weight
-            
+
             epoch_st = time.perf_counter()
             self.lm.train()
             train_iterator_ = iter(self.train_iter)
             # Update gamma for GRL
             alpha = 2.0 / (1.0 + math.exp(-self.hp.grl_gamma * (epoch/n_epochs))) - 1.0
             train_loss = self.run_epochs(epoch, train_iterator_, cls_weight, rec_weight, alpha, model="lm", mode="Train")
-            
+
             # Validation
             self.lm.eval()
             with torch.no_grad():
                 valid_iterator_ = iter(self.valid_iter)
                 valid_loss = self.run_epochs(epoch, valid_iterator_, cls_weight, rec_weight, alpha, model="lm", mode="Eval")
                 print(f"| Epoch: {epoch+1:03} | Train loss: {train_loss:.3f} | Valid loss: {valid_loss:.3f} | time: {(time.perf_counter() - epoch_st):.2f}s'")
-                
+
                 if epoch >= self.hp.save_epoch:
                     # Save best model
                     if valid_loss <= best_loss:
                         best_loss = valid_loss
                         best_epoch = epoch
-                        counter = tolerance
-                        
+
                         # Save best model
                         #save_path = re.sub("\.pt$", f".{epoch}_epochs.pt", path)
                         save_path = path
                         torch.save(self.lm.state_dict(), save_path)
-                    
-                    elif epoch%check_every == 0:
-                        counter -= 1
-            
-            if counter == 0:
-                print(f"Ending training early after {epoch+1} epochs. best epoch: {best_epoch+1}")
-                break
-                
+
         print(f"Saved model in {path}.")
                     
-    def train_summarizer(self, model_name, lm_path, tolerance=3, check_every=5):
+    def train_summarizer(self, model_name, lm_path):
         """
         Train the summarizer module
         
         Input:
             path (str): Path where to save the trained language model. If None, save to a default directory
-            tolerance (int): Defines when to stop training if there is no improvement with the loss
-            check_every (int): Check loss value every certain number of epochs
+            # REMOVED: tolerance and check_every arguments
         """
         if not model_name:
             model_name = self.gen_model_name(model="summarizer")
@@ -164,7 +152,9 @@ class Procedure():
         print(f"Training Summarizer for {n_epochs} epochs...")
         best_loss = float("inf")
         best_epoch = 0
-        counter = tolerance
+        
+        # REMOVED: counter = tolerance
+        
         cls_weight = self.hp.cls_weight
         rec_weight = 1.0
         
@@ -186,21 +176,17 @@ class Procedure():
                 if valid_loss <= best_loss:
                     best_loss = valid_loss
                     best_epoch = epoch
-                    counter = tolerance
+                    
+                    # REMOVED: counter = tolerance (resetting counter)
                     
                     # Save best model
-                    #save_path = re.sub("\.pt$", f".{epoch}_epochs.pt", path)
                     save_path = path
                     torch.save(self.summarizer, save_path)
                     
-                elif epoch%check_every == 0:
-                    counter -= 1   
+                # REMOVED: elif epoch%check_every == 0 ... and the break condition
             
             torch.cuda.empty_cache()
                         
-            if counter == 0:
-                print(f"Ending training early after {epoch+1} epochs. best epoch: {best_epoch+1}")
-                break
         
         print(f"Saved model in {path}.")
     
