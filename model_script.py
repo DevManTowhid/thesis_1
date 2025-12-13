@@ -197,7 +197,7 @@ if __name__ == "__main__":
     parser.add_argument("--gen-hidden", type=int, dest="gen_hidden_type", default=None, help="Hidden representations used to generate summaries at test time.")
     parser.add_argument("--beam-decode", type=bool, dest="beam_decode", default=None, help="Enable or disable beam decoding.")
     
-    parser.add_argument("--check-every", dest="check_every", type=int, default=5, help="Number of epochs after which check the loss value in order to stop early.")
+    # parser.add_argument("--check-every", dest="check_every", type=int, default=5, help="Number of epochs after which check the loss value in order to stop early.")
     parser.add_argument("--lm-path", type=str, dest="lm_path", default=None, help="Path where to save the trained language model or path to a pretrained language model to load.")
     parser.add_argument("--model-name", type=str, dest="model_name", default=None, help="Name of the model. If None, a name will be automatically generated.")
     parser.add_argument("--test-path", type=str, dest="test_path", default=None, help="Path to the test file.")
