@@ -1,28 +1,28 @@
 import re
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from utils.model_utils import logits_to_prob
 
 class PossibleSolutions():
     
-    def __init__(self, tokens, log_probs, hidden):
+    # FIX: Added context=None to __init__
+    def __init__(self, tokens, log_probs, hidden, context=None):
         self.tokens = tokens
         self.log_probs = log_probs
         self.hidden = hidden
+        self.context = context  # FIX: Store the context
         
     def extend(self, token, log_prob, hidden, context=None):
         return PossibleSolutions(
             tokens=self.tokens + [token], 
             log_probs=self.log_probs + [log_prob],
             hidden=hidden,
-            context=context
+            context=context if context is not None else self.context # Keep old context if not updating
         )
     
     def n_gram_blocking(self, n):
-        """ n-gramm blocking function preventing repeating identical sequence in output as in Paulus, et al. (2017) """
+        """ n-gramm blocking function preventing repeating identical sequence """
         return self.tokens[-n:]
     
     @property
@@ -45,7 +45,7 @@ class BeamDecoder(nn.Module):
         self.vocab = vocab
         self.beam_size = beam_size
         self.n_gram_block = n_gram_block
-        self.min_dec_steps = min_dec_steps # Minimum sentence length that we have to produce (estimate average len)
+        self.min_dec_steps = min_dec_steps 
         self.min_return_seq = min_return_seq
         self.num_return_sum = num_return_sum
         self.output_dim = len(vocab)
@@ -61,7 +61,6 @@ class BeamDecoder(nn.Module):
     def filter_unk(self, idx):
         return idx if idx < len(self.vocab) else self.vocab.stoi["<unk>"]
     
-    #def decode(self, src_input, src_len, gen_len, enc_outputs, hidden, src_mask, src_ext, src_oovs, max_oov_len):
     def decode(self, hidden, context, gen_len, batch_size):
         # hidden: [batch_size, hid_dim]
         # src_input: [seq_len, batch_size]
@@ -72,6 +71,7 @@ class BeamDecoder(nn.Module):
             context_idx = context[idx, :].unsqueeze(0) # [1, hid_dim]
             
             # Creating hypotheses
+            # FIX: Now this works because __init__ accepts context
             hyps = [PossibleSolutions(
                 tokens=[self.vocab.start()],
                 log_probs=[0.0],
@@ -82,19 +82,17 @@ class BeamDecoder(nn.Module):
             # Storing result for specific idx sentence
             sequence_results = []
             
-            # K = number of running hypotheses
-            # Decoding sentence
-            #context = torch.cat([hyp.hidden for hyp in hyps], dim=0) # [K, hid_dim]
             for t in range(gen_len):
                 num_orig_hyps = len(hyps)
                 dec_input = [self.filter_unk(hyp.latest_token) for hyp in hyps]
                 dec_input = torch.tensor(dec_input, dtype=torch.long, device=self.device) # [K]
                 dec_input = self.embedding(dec_input.unsqueeze(0)) # [1, K, emb_dim]
+                
                 hidden_idx = torch.cat([hyp.hidden for hyp in hyps], dim=0) # [K, hid_dim]
+                # Gather contexts from hypotheses
                 context_idx = torch.cat([hyp.context for hyp in hyps], dim=0) # [K, hid_dim]
                 
                 # Decoder block
-                #vocab_dist, attn_dist, context_vector, hidden_idx = self.decoder(dec_input.unsqueeze(0), enc_outputs_hyp, hidden_idx, src_mask_hyp)
                 output_idx, hidden_idx = self.decoder(dec_input, hidden_idx.unsqueeze(0), context_idx.unsqueeze(0))
                 log_prob = logits_to_prob(output_idx, method="softmax", tau=1.0, eps=1e-10, gumbel_hard=False)
             
@@ -106,6 +104,9 @@ class BeamDecoder(nn.Module):
                 for i in range(num_orig_hyps):
                     h_i = hyps[i]
                     hidden_i = hidden_idx[i].unsqueeze(0) # [1, hid_dim]
+                    # FIX: Keep the context for the new hypothesis
+                    context_i = context_idx[i].unsqueeze(0) 
+
                     for j in range(self.beam_size * 2):
                         if topk_ids[i, j].item() == self.vocab.unk():
                             pass
@@ -116,11 +117,12 @@ class BeamDecoder(nn.Module):
                                 new_hyp = h_i.extend(
                                     token=topk_ids[i, j].item(), 
                                     log_prob=topk_probs[i, j].item(), 
-                                    hidden=hidden_i
+                                    hidden=hidden_i,
+                                    context=context_i # Pass context explicitly
                                 )
-                        all_hyps.append(new_hyp)
+                                all_hyps.append(new_hyp)
             
-                hyps = [] # hyps contains the top-K hypothesis at each step
+                hyps = [] 
                 for hyp in self.sort_hyps(all_hyps):
                     if hyp.latest_token == self.vocab.stop():
                         if t >= self.min_dec_steps:
@@ -133,7 +135,6 @@ class BeamDecoder(nn.Module):
                 if len(sequence_results) == self.beam_size:
                     break
                 
-            # Reached max decode steps but not enough results
             if len(sequence_results) < self.min_return_seq:
                 sequence_results = sequence_results + hyps[:self.min_return_seq - len(sequence_results)]
                 
@@ -141,24 +142,18 @@ class BeamDecoder(nn.Module):
             best_hyps = sorted_results[:self.min_return_seq]
             best_hyps_all.extend(best_hyps)
             
-        # Generating text for all reviews
         hyp_words = [self.vocab.outputids2words(hyp.tokens) for i, hyp in enumerate(best_hyps_all)]
         hyp_results = [postprocess(words, skip_special_tokens=True, clean_up_tokenization_spaces=True) for words in hyp_words]
         
         return hyp_results
 
-
-    
+# Helper functions remain the same
 def postprocess(tokens, skip_special_tokens=True, clean_up_tokenization_spaces=True):
-
     if skip_special_tokens:
         tokens = [t for t in tokens if not is_special(t)]
-
     out_string = ' '.join(tokens)
-
     if clean_up_tokenization_spaces:
         out_string = clean_up_tokenization(out_string)
-
     return out_string
 
 def is_special(token):
@@ -168,14 +163,6 @@ def is_special(token):
     return token == res.group()
 
 def clean_up_tokenization(out_string):
-    """
-    Reference : transformers.tokenization_utils_base
-    Clean up a list of simple English tokenization artifacts like spaces before punctuations and abbreviated forms.
-    Args:
-        out_string (:obj:`str`): The text to clean up.
-    Returns:
-        :obj:`str`: The cleaned-up string.
-    """
     out_string = (
         out_string.replace(" .", ".")
         .replace(" ?", "?")
