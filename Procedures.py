@@ -315,7 +315,7 @@ class Procedure():
         iterator_ = iter(itr)
         with torch.no_grad():
             for i in range(len(iterator_)):
-                batch = iterator_.next()
+                batch = next(iterator_)
                 if batch_idx is not None and i not in batch_idx:
                     continue
                 batch.to(self.device)
@@ -340,7 +340,7 @@ class Procedure():
         print(f"Loading summarizer from {path}")
         
         # Load summarizer
-        summarizer = torch.load(path)
+        summarizer = torch.load(path, weights_only=False)
         summarizer.hp = self.hp
         
         summarizer.eval()
@@ -352,7 +352,7 @@ class Procedure():
         
         with torch.no_grad():
             for i in tqdm(range(tot_elements)):
-                batch = iterator_.next()
+                batch = next(iterator_)
                 if batch_idx is not None and i not in batch_idx:
                     continue
                 batch.to(self.device)
