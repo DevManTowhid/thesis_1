@@ -24,7 +24,7 @@ class DatasetConfig():
         
         # Data paths
         self.data_dir = DATA_DIR
-        self.train_data = f"{DATA_DIR}processed/train.mini.csv"
+        self.train_data = f"{DATA_DIR}processed/20221204_amazon_reviews_train.csv"
         self.valid_data = f"{DATA_DIR}processed/20221204_amazon_reviews_valid.csv"
         self.test_data = f"{DATA_DIR}processed/20221204_amazon_reviews_test.csv"
         
