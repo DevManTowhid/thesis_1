@@ -201,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--category", type=str, default=None, help="Product category")
     parser.add_argument("--test-ratio", dest="test_ratio", type=float, default=0.2, help="Test dataset ratio")
     parser.add_argument("--valid-ratio", dest="valid_ratio", type=float, default=0.2, help="Validation dataset ratio")
-    parser.add_argument("--max-size", dest="max_num_reviews", type=int, default=1500, help="Maximum number of reviews for a given category")
+    parser.add_argument("--max-size", dest="max_num_reviews", type=int, default=2000000000, help="Maximum number of reviews for a given category")
     parser.add_argument("--min-prod-reviews", dest="min_prod_reviews", type=int, default=10, help="Minimum number of reviews per product")
     parser.add_argument("--max-prod-reviews", dest="max_prod_reviews", type=int, default=10, help="Maximum number of reviews per product")
     parser.add_argument("--out-dir", dest="out_dir", type=str, default="./data/", help="Output directory")
