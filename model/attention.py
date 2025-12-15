@@ -71,7 +71,11 @@ class GAT(nn.Module):
         self.dropout = dropout
         self.num_heads = num_heads
         
-        self.layers = [GraphAttentionLayer(input_dim, output_dim, dropout=dropout, alpha=alpha, concat=True, device=device) for _ in range(num_heads)]
+        # FIX IS HERE: Wrapped in nn.ModuleList so parameters are registered!
+        self.layers = nn.ModuleList([
+            GraphAttentionLayer(input_dim, output_dim, dropout=dropout, alpha=alpha, concat=True, device=device) 
+            for _ in range(num_heads)
+        ])
 
     def forward(self, x):
         # x: [seq_len, hid_dim * num_layers]
