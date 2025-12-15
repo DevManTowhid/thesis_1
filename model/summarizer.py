@@ -191,6 +191,37 @@ class Summarizer(nn.Module):
         
         sum_ids = sum_outputs.permute(1, 2, 0).argmax(1) # [1, sum_len]
         return sum_ids
+    # PASTE THIS INSIDE THE Summarizer CLASS in summarizer.py
+    
+    def forward(self, src_input, trg, src_len, tf_ratio=0.5, gumbel_hard=True):
+        # 1. Embed and Encode
+        emb_input_rec = self.embedding_rec(src_input) # [seq_len, batch_size, emb_dim]
+        rec_hidden = self.encoder_rec(emb_input_rec, self.device) # [batch_size, hid_dim]
+
+        # 2. Handle Projection (Disentanglement)
+        # If projection is ON, we want to extract the NEUTRAL (content) part
+        if self.hp.use_proj and self.hp.use_cls:
+            # We need the classifier encoder to find the "Sentiment Direction"
+            emb_input_cls = self.embedding_cls(src_input)
+            cls_hidden = self.encoder_cls(emb_input_cls, self.device)
+            
+            # h_hat is the Neutral Content (Original - Sentiment)
+            h_hat = project_vector(rec_hidden, cls_hidden, self.device)
+            context = h_hat 
+        else:
+            # If projection is OFF, just use the raw hidden state
+            context = rec_hidden
+
+        # 3. Decode
+        # Pass the context (neutral vector) to the decoder
+        outputs = self.decode_reviews(context, trg, tf_ratio=tf_ratio)
+
+        # 4. Cosine Similarity (Placeholder)
+        # Procedures.py expects a second return value. 
+        # We return a dummy value here because the main training signal comes from 'outputs'.
+        cos_sim = torch.tensor(0.0, device=self.device)
+
+        return outputs, cos_sim
 
 # FIX: Added this helper function which was missing
 def sample_target_docs(domain, hidden, batch_size, pool="same", concat=False):
