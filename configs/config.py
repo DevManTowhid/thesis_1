@@ -52,7 +52,7 @@ class HP():
         self.use_cls = True  # Specify if document (sentiment) classification should be done
         self.use_grl = True  # Specify if the gradient reversal layer should be used
         self.use_proj = True  # Specify if the projection mechanism should be used
-        self.use_gat = False  # Specify in the Graph Attention NN (GAT) should be used in the encoder
+        self.use_gat = True  # Specify in the Graph Attention NN (GAT) should be used in the encoder
         
         assert (not self.use_rec and self.use_cls) or self.use_rec
         
